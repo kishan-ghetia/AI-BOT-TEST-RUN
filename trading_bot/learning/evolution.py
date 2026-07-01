@@ -123,27 +123,51 @@ class StrategyPool:
                 t.history.append(t.fitness)
 
     def evolve(self) -> dict:
-        """Fire the bottom, keep the top, spawn mutated offspring of winners."""
+        """Fire the bottom, keep the top, spawn mutated offspring of winners.
+
+        Diversity protection: the best trader of each kind is immune from
+        culling (styles go cold, not extinct - regimes rotate), and any kind
+        missing from the pool gets a fresh random hire."""
         scored = [t for t in self.traders if t.fitness is not None]
         if len(scored) < 2:
             return {"culled": [], "spawned": [], "generation": self.generation}
         scored.sort(key=lambda t: t.fitness, reverse=True)
+
+        protected: set[str] = set()
+        seen_kinds: set[str] = set()
+        for t in scored:  # best of each kind, in fitness order
+            if t.kind not in seen_kinds:
+                protected.add(t.trader_id)
+                seen_kinds.add(t.kind)
+
         n_cull = max(1, int(len(scored) * self.cull_fraction))
-        survivors = scored[:-n_cull]
-        culled = scored[-n_cull:]
+        cullable = [t for t in reversed(scored) if t.trader_id not in protected]
+        culled = cullable[:n_cull]
+        culled_ids = {t.trader_id for t in culled}
+        survivors = [t for t in scored if t.trader_id not in culled_ids]
         for t in survivors:
             t.generations_survived += 1
 
         self.generation += 1
         spawned: list[Trader] = []
         parents = survivors[: max(1, len(survivors) // 2)]  # elite breed
-        for i in range(n_cull):
-            parent = parents[i % len(parents)]
-            child = Trader(
-                trader_id=f"{parent.kind}_g{self.generation}_{i}",
-                kind=parent.kind,
-                params=mutate_params(parent.kind, parent.params, self.rng),
-            )
+        surviving_kinds = {t.kind for t in survivors}
+        missing_kinds = [k for k in GENE_SPACE if k not in surviving_kinds]
+        for i in range(len(culled)):
+            if missing_kinds:  # re-open the extinct desk with a fresh hire
+                kind = missing_kinds.pop(0)
+                child = Trader(
+                    trader_id=f"{kind}_g{self.generation}_{i}",
+                    kind=kind,
+                    params=random_params(kind, self.rng),
+                )
+            else:
+                parent = parents[i % len(parents)]
+                child = Trader(
+                    trader_id=f"{parent.kind}_g{self.generation}_{i}",
+                    kind=parent.kind,
+                    params=mutate_params(parent.kind, parent.params, self.rng),
+                )
             spawned.append(child)
 
         self.traders = survivors + spawned

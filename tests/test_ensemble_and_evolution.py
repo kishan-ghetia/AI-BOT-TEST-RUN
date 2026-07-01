@@ -83,6 +83,18 @@ def test_evolution_fires_worst_and_hires(tmp_path):
     assert len(report["spawned"]) == len(report["culled"])
 
 
+def test_no_kind_goes_extinct(tmp_path):
+    pool = StrategyPool("daily", tmp_path, pool_size=6, cull_fraction=0.5, seed=1)
+    # make every smc_ict and fibonacci trader terrible for several generations
+    for _ in range(5):
+        fitness = {t.trader_id: (1.0 if t.kind == "technical" else -5.0)
+                   for t in pool.traders}
+        pool.record_fitness(fitness)
+        pool.evolve()
+    kinds = {t.kind for t in pool.traders}
+    assert kinds == {"technical", "fibonacci", "smc_ict"}  # all desks alive
+
+
 def test_validation_fitness_out_of_sample_only():
     from trading_bot.learning.evolution import validation_fitness
 
