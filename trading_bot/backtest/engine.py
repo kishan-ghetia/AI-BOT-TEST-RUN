@@ -26,6 +26,11 @@ logger = logging.getLogger(__name__)
 
 ENTRY_THRESHOLD = 0.15  # |ensemble value| below this = no trade
 
+# Strategies only need recent history each bar; a fixed window keeps the
+# whole backtest O(n) instead of O(n^2). Must cover the largest strategy
+# warmup (ML: ~130) and analysis window (SMC/ICT: 200) with headroom.
+WINDOW_BARS = 400
+
 
 @dataclass
 class BacktestResult:
@@ -47,7 +52,7 @@ def run_backtest(df: pd.DataFrame, ensemble: Ensemble, symbol: str,
     halted = False
 
     for i in range(warmup, len(df)):
-        window = df.iloc[: i + 1]
+        window = df.iloc[max(0, i + 1 - WINDOW_BARS) : i + 1]
         bar = df.iloc[i]
         ts = df.index[i]
         price = float(bar["close"])
