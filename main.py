@@ -110,7 +110,7 @@ def cmd_evolve(args) -> int:
     from trading_bot.data.fetcher import get_ohlcv
     from trading_bot.learning.adaptive_weights import AdaptiveWeights
     from trading_bot.learning.ensemble import Ensemble
-    from trading_bot.learning.evolution import StrategyPool
+    from trading_bot.learning.evolution import StrategyPool, validation_fitness
 
     df = get_ohlcv(args.symbol, args.timeframe, start=args.start, end=args.end,
                    synthetic=args.synthetic)
@@ -126,9 +126,9 @@ def cmd_evolve(args) -> int:
             strat = trader.build()
             ens = Ensemble([strat], AdaptiveWeights([strat.name]))
             res = run_backtest(df, ens, args.symbol, args.timeframe)
-            # fitness: Sharpe with a drawdown penalty
-            fitness[trader.trader_id] = (res.metrics["sharpe"]
-                                         - 2.0 * res.metrics["max_drawdown"])
+            # walk-forward: judge only the out-of-sample tail of the run
+            fitness[trader.trader_id] = validation_fitness(
+                res.equity_curve, args.timeframe)
         pool.record_fitness(fitness)
         report = pool.evolve()
         print(f"Generation {report['generation']}: "

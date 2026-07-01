@@ -83,6 +83,18 @@ def test_evolution_fires_worst_and_hires(tmp_path):
     assert len(report["spawned"]) == len(report["culled"])
 
 
+def test_validation_fitness_out_of_sample_only():
+    from trading_bot.learning.evolution import validation_fitness
+
+    # great in-sample, flat out-of-sample: near-zero fitness
+    lucky = [100 + i for i in range(70)] + [170.0] * 30
+    # flat in-sample, strong out-of-sample: positive fitness
+    late_bloomer = [100.0] * 70 + [100 + i for i in range(30)]
+    assert validation_fitness(late_bloomer) > validation_fitness(lucky)
+    # too little evidence is punished hard
+    assert validation_fitness([100.0, 101.0]) == -10.0
+
+
 def test_mutation_stays_in_bounds():
     import random
 

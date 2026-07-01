@@ -34,6 +34,22 @@ FACTORIES = {
 }
 
 
+def validation_fitness(equity_curve: list[float], timeframe: str = "daily",
+                       validation_frac: float = 0.3,
+                       dd_penalty: float = 2.0) -> float:
+    """Walk-forward fitness: judge a trader only on the OUT-OF-SAMPLE tail of
+    its backtest (the learners adapted on the earlier bars). Sharpe on the
+    validation segment minus a drawdown penalty."""
+    from trading_bot.backtest.metrics import compute_metrics
+
+    n = len(equity_curve)
+    if n < 10:
+        return -10.0  # not enough evidence: worst possible desk
+    tail = equity_curve[int(n * (1 - validation_frac)):]
+    m = compute_metrics(tail, timeframe)
+    return m["sharpe"] - dd_penalty * m["max_drawdown"]
+
+
 @dataclass
 class Trader:
     trader_id: str
