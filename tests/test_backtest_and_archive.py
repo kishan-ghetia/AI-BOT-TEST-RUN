@@ -49,6 +49,20 @@ def test_metrics_hand_checkable():
     assert m["max_drawdown"] > 0
 
 
+def test_paper_broker_per_symbol_attribution():
+    from trading_bot.execution.broker_base import Order
+    from trading_bot.execution.paper_broker import PaperBroker
+
+    b = PaperBroker(initial_capital=10_000, slippage_bps=0, fee_bps=0)
+    b.submit_order(Order(symbol="AAA", side="long", size=10), price=100)
+    b.submit_order(Order(symbol="BBB", side="long", size=10), price=100)
+    b.close_position("AAA", price=110)  # +100
+    b.close_position("BBB", price=95)   # -50
+    assert abs(b.realized_by_symbol["AAA"] - 100) < 1e-9
+    assert abs(b.realized_by_symbol["BBB"] + 50) < 1e-9
+    assert abs(b.realized_pnl - 50) < 1e-9
+
+
 def test_archive_round_trip(temp_store):
     a = Archive(temp_store, "daily", "TEST")
     w = AdaptiveWeights(["x", "y"])

@@ -17,6 +17,7 @@ class PaperBroker(Broker):
         self.fee_bps = fee_bps
         self.positions: dict[str, Position] = {}
         self.realized_pnl = 0.0
+        self.realized_by_symbol: dict[str, float] = {}
         self.fills: list[Fill] = []
 
     # --- account state ---
@@ -72,6 +73,7 @@ class PaperBroker(Broker):
         pnl = pos.unrealized_pnl(fill_price) - fee
         self.cash += pnl
         self.realized_pnl += pnl
+        self.realized_by_symbol[symbol] = self.realized_by_symbol.get(symbol, 0.0) + pnl
         fill = Fill(symbol, exit_side, pos.size, fill_price, fee, timestamp)
         fill_pnl = pnl  # convenience for callers
         fill.__dict__["pnl"] = fill_pnl

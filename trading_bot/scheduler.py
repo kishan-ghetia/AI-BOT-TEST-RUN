@@ -114,7 +114,21 @@ class Scheduler:
         signal = ensemble.combine(df, context)
 
         equity = self.broker.get_equity({symbol: price})
-        perf = archive.update_performance(equity, now, CADENCE_SECONDS[timeframe])
+
+        # per-symbol equity for THIS archive: this symbol's own realized +
+        # unrealized P&L only, so one market's losses can't contaminate
+        # another's gate statistics (global equity still drives sizing)
+        realized_map = getattr(self.broker, "realized_by_symbol", None)
+        if realized_map is not None:
+            open_pos = next((p for p in self.broker.get_positions()
+                             if p.symbol == symbol), None)
+            unrealized = open_pos.unrealized_pnl(price) if open_pos else 0.0
+            symbol_equity = (config.INITIAL_CAPITAL
+                             + realized_map.get(symbol, 0.0) + unrealized)
+        else:  # real brokers don't attribute per symbol; use account equity
+            symbol_equity = equity
+        perf = archive.update_performance(symbol_equity, now,
+                                          CADENCE_SECONDS[timeframe])
 
         result = {"symbol": symbol, "timeframe": timeframe, "action": "hold",
                   "signal": round(signal.value, 4),
