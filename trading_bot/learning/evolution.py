@@ -22,7 +22,8 @@ from trading_bot.strategies.technical_strategy import TechnicalStrategy
 # gene space: strategy kind -> {param: (low, high, is_int)}
 GENE_SPACE = {
     "technical": {"fast": (5, 20, True), "slow": (30, 100, True),
-                  "rsi_window": (7, 21, True)},
+                  "rsi_window": (7, 21, True),
+                  "rsi_low": (15, 40, True), "rsi_high": (60, 85, True)},
     "fibonacci": {"lookback": (2, 6, True)},
     "smc_ict": {"lookback": (2, 6, True), "recent_bars": (5, 20, True)},
 }
@@ -78,7 +79,10 @@ def mutate_params(kind: str, params: dict, rng: random.Random,
                   scale: float = 0.25) -> dict:
     out = {}
     for name, (lo, hi, is_int) in GENE_SPACE[kind].items():
-        val = params[name]
+        val = params.get(name)
+        if val is None:  # gene added after this lineage was saved: roll fresh
+            out[name] = rng.randint(lo, hi) if is_int else rng.uniform(lo, hi)
+            continue
         span = (hi - lo) * scale
         newval = val + rng.uniform(-span, span)
         newval = max(lo, min(hi, newval))

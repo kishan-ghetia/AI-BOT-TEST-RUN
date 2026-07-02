@@ -10,10 +10,13 @@ from trading_bot.strategies.base import Signal, Strategy
 class TechnicalStrategy(Strategy):
     name = "technical"
 
-    def __init__(self, fast: int = 10, slow: int = 50, rsi_window: int = 14):
+    def __init__(self, fast: int = 10, slow: int = 50, rsi_window: int = 14,
+                 rsi_low: int = 30, rsi_high: int = 70):
         self.fast = fast
         self.slow = slow
         self.rsi_window = rsi_window
+        self.rsi_low = rsi_low
+        self.rsi_high = rsi_high
 
     def warmup_bars(self) -> int:
         return self.slow + 10
@@ -34,9 +37,9 @@ class TechnicalStrategy(Strategy):
 
         # RSI mean-reversion at extremes, trend-follow otherwise
         r = ta.rsi(close, self.rsi_window).iloc[-1]
-        if r < 30:
+        if r < self.rsi_low:
             votes.append(1.0)
-        elif r > 70:
+        elif r > self.rsi_high:
             votes.append(-1.0)
         else:
             votes.append((r - 50) / 50.0)

@@ -120,12 +120,14 @@ def test_mutation_stays_in_bounds():
     import random
 
     rng = random.Random(7)
+    # legacy lineage without the newer rsi band genes: must backfill, not crash
     params = {"fast": 10, "slow": 50, "rsi_window": 14}
     for _ in range(50):
         params = mutate_params("technical", params, rng)
         for name, (lo, hi, _) in GENE_SPACE["technical"].items():
             assert lo <= params[name] <= hi
         assert params["fast"] < params["slow"]
+        assert params["rsi_low"] < params["rsi_high"]
 
 
 def test_traders_build_runnable_strategies(tmp_path, choppy):
