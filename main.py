@@ -112,23 +112,30 @@ def cmd_evolve(args) -> int:
     from trading_bot.learning.ensemble import Ensemble
     from trading_bot.learning.evolution import StrategyPool, validation_fitness
 
-    df = get_ohlcv(args.symbol, args.timeframe, start=args.start, end=args.end,
-                   synthetic=args.synthetic)
-    if df.empty:
-        print(f"No data for {args.symbol} - try --synthetic for offline testing")
-        return 1
+    symbols = args.symbols.split(",") if args.symbols else [args.symbol]
+    frames = {}
+    for sym in symbols:
+        df = get_ohlcv(sym, args.timeframe, start=args.start, end=args.end,
+                       synthetic=args.synthetic)
+        if df.empty:
+            print(f"No data for {sym} - try --synthetic for offline testing")
+            return 1
+        frames[sym] = df
 
     pool = StrategyPool(args.timeframe, Path(config.DATA_STORE_DIR),
                         pool_size=args.pool_size)
     for gen in range(args.generations):
         fitness: dict[str, float] = {}
         for trader in pool.traders:
-            strat = trader.build()
-            ens = Ensemble([strat], AdaptiveWeights([strat.name]))
-            res = run_backtest(df, ens, args.symbol, args.timeframe)
-            # walk-forward: judge only the out-of-sample tail of the run
-            fitness[trader.trader_id] = validation_fitness(
-                res.equity_curve, args.timeframe)
+            # portfolio fitness: a trader must generalize across markets,
+            # not get lucky on one - mean of out-of-sample fitness per symbol
+            scores = []
+            for sym, df in frames.items():
+                strat = trader.build()
+                ens = Ensemble([strat], AdaptiveWeights([strat.name]))
+                res = run_backtest(df, ens, sym, args.timeframe)
+                scores.append(validation_fitness(res.equity_curve, args.timeframe))
+            fitness[trader.trader_id] = sum(scores) / len(scores)
         pool.record_fitness(fitness)
         report = pool.evolve()
         print(f"Generation {report['generation']}: "
@@ -168,7 +175,9 @@ def build_parser() -> argparse.ArgumentParser:
     pa.set_defaults(func=cmd_paper)
 
     ev = sub.add_parser("evolve", help="evolve the strategy pool (fire/hire)")
-    ev.add_argument("--symbol", required=True)
+    group = ev.add_mutually_exclusive_group(required=True)
+    group.add_argument("--symbol")
+    group.add_argument("--symbols", help="comma-separated basket for portfolio fitness")
     ev.add_argument("--timeframe", default="daily", choices=config.TIMEFRAMES)
     ev.add_argument("--start")
     ev.add_argument("--end")
