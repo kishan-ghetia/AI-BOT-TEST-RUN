@@ -101,6 +101,18 @@ class StrategyPool:
         self._load()
         if not self.traders:
             self._seed_population()
+        elif len(self.traders) < pool_size:
+            # firm grew: honor the requested size with fresh hires
+            self.pool_size = pool_size
+            kinds = list(GENE_SPACE.keys())
+            for i in range(pool_size - len(self.traders)):
+                kind = kinds[i % len(kinds)]
+                self.traders.append(Trader(
+                    trader_id=f"{kind}_g{self.generation}_new{i}",
+                    kind=kind,
+                    params=random_params(kind, self.rng),
+                ))
+            self._save()
 
     def _seed_population(self) -> None:
         kinds = list(GENE_SPACE.keys())

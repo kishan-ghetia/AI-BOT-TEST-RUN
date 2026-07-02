@@ -83,6 +83,15 @@ def test_evolution_fires_worst_and_hires(tmp_path):
     assert len(report["spawned"]) == len(report["culled"])
 
 
+def test_pool_grows_to_requested_size(tmp_path):
+    StrategyPool("daily", tmp_path, pool_size=4, seed=1)
+    grown = StrategyPool("daily", tmp_path, pool_size=9, seed=2)
+    assert len(grown.traders) == 9
+    # persisted: reloading keeps the new size
+    again = StrategyPool("daily", tmp_path, pool_size=9, seed=3)
+    assert len(again.traders) == 9
+
+
 def test_no_kind_goes_extinct(tmp_path):
     pool = StrategyPool("daily", tmp_path, pool_size=6, cull_fraction=0.5, seed=1)
     # make every smc_ict and fibonacci trader terrible for several generations
