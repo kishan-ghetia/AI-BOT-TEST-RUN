@@ -46,16 +46,17 @@ def atr(df: pd.DataFrame, window: int = 14) -> pd.Series:
 
 def swing_points(df: pd.DataFrame, lookback: int = 3):
     """Return (swing_high_mask, swing_low_mask): bar is a local extreme vs
-    `lookback` bars on each side."""
-    high, low = df["high"], df["low"]
+    `lookback` bars on each side. Vectorized (centered rolling extremes)."""
     n = len(df)
     sh = np.zeros(n, dtype=bool)
     sl = np.zeros(n, dtype=bool)
-    for i in range(lookback, n - lookback):
-        window_h = high.iloc[i - lookback : i + lookback + 1]
-        window_l = low.iloc[i - lookback : i + lookback + 1]
-        if high.iloc[i] == window_h.max():
-            sh[i] = True
-        if low.iloc[i] == window_l.min():
-            sl[i] = True
+    win = 2 * lookback + 1
+    if n >= win:
+        high = df["high"].to_numpy(dtype=float)
+        low = df["low"].to_numpy(dtype=float)
+        hmax = pd.Series(high).rolling(win, center=True).max().to_numpy()
+        lmin = pd.Series(low).rolling(win, center=True).min().to_numpy()
+        core = slice(lookback, n - lookback)
+        sh[core] = high[core] == hmax[core]
+        sl[core] = low[core] == lmin[core]
     return pd.Series(sh, index=df.index), pd.Series(sl, index=df.index)

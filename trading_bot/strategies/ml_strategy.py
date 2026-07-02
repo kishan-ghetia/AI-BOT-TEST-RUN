@@ -56,7 +56,9 @@ class MLStrategy(Strategy):
         if self.model is None:
             return self.neutral(df, context, reason="insufficient_history")
 
-        feats = build_features(df)
+        # prediction only needs the latest feature row; the longest-lookback
+        # feature (ema_50 / vol_20 chains) converges well within 80 bars
+        feats = build_features(df.tail(80))
         if feats.empty:
             return self.neutral(df, context, reason="no_features")
         x = feats[FEATURE_COLUMNS].iloc[[-1]]

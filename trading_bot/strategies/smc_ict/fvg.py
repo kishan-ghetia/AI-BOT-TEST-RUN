@@ -18,34 +18,34 @@ def find_fvgs(df: pd.DataFrame, min_gap_pct: float = 0.0) -> list[FairValueGap]:
     """Bullish FVG: low of bar i+1 > high of bar i-1 (gap left below).
     Bearish FVG: high of bar i+1 < low of bar i-1."""
     gaps: list[FairValueGap] = []
-    high, low, close = df["high"], df["low"], df["close"]
+    high = df["high"].to_numpy(dtype=float)
+    low = df["low"].to_numpy(dtype=float)
+    close = df["close"].to_numpy(dtype=float)
     for i in range(1, len(df) - 1):
-        ref = close.iloc[i]
+        ref = close[i]
         if ref <= 0:
             continue
-        if low.iloc[i + 1] > high.iloc[i - 1]:
-            size = (low.iloc[i + 1] - high.iloc[i - 1]) / ref
-            if size >= min_gap_pct:
+        if low[i + 1] > high[i - 1]:
+            if (low[i + 1] - high[i - 1]) / ref >= min_gap_pct:
                 gaps.append(FairValueGap(i, "bullish",
-                                         top=low.iloc[i + 1],
-                                         bottom=high.iloc[i - 1]))
-        elif high.iloc[i + 1] < low.iloc[i - 1]:
-            size = (low.iloc[i - 1] - high.iloc[i + 1]) / ref
-            if size >= min_gap_pct:
+                                         top=low[i + 1], bottom=high[i - 1]))
+        elif high[i + 1] < low[i - 1]:
+            if (low[i - 1] - high[i + 1]) / ref >= min_gap_pct:
                 gaps.append(FairValueGap(i, "bearish",
-                                         top=low.iloc[i - 1],
-                                         bottom=high.iloc[i + 1]))
+                                         top=low[i - 1], bottom=high[i + 1]))
     return gaps
 
 
 def unfilled_fvgs(df: pd.DataFrame, gaps: list[FairValueGap]) -> list[FairValueGap]:
     """Keep gaps price hasn't fully traded back through since formation."""
+    high = df["high"].to_numpy(dtype=float)
+    low = df["low"].to_numpy(dtype=float)
     out = []
     for g in gaps:
-        after = df.iloc[g.index + 2 :]
-        if g.kind == "bullish" and (after["low"] <= g.bottom).any():
+        start = g.index + 2
+        if g.kind == "bullish" and (low[start:] <= g.bottom).any():
             continue
-        if g.kind == "bearish" and (after["high"] >= g.top).any():
+        if g.kind == "bearish" and (high[start:] >= g.top).any():
             continue
         out.append(g)
     return out

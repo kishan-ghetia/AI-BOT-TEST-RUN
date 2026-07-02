@@ -41,12 +41,14 @@ class FibZones:
 def get_fib_zones(df: pd.DataFrame, lookback: int = 3) -> FibZones | None:
     """Build fib zones from the two most recent alternating swing points."""
     sh_mask, sl_mask = ta.swing_points(df, lookback)
-    highs = [(i, df["high"].iloc[i]) for i in range(len(df)) if sh_mask.iloc[i]]
-    lows = [(i, df["low"].iloc[i]) for i in range(len(df)) if sl_mask.iloc[i]]
-    if not highs or not lows:
+    sh_idx = sh_mask.to_numpy().nonzero()[0]
+    sl_idx = sl_mask.to_numpy().nonzero()[0]
+    if sh_idx.size == 0 or sl_idx.size == 0:
         return None
-    hi_idx, hi = highs[-1]
-    lo_idx, lo = lows[-1]
+    hi_idx = int(sh_idx[-1])
+    lo_idx = int(sl_idx[-1])
+    hi = float(df["high"].iloc[hi_idx])
+    lo = float(df["low"].iloc[lo_idx])
     direction = "up" if lo_idx < hi_idx else "down"
     return FibZones(swing_high=hi, swing_low=lo, direction=direction)
 

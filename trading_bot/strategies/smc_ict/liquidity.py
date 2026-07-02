@@ -27,8 +27,10 @@ def find_liquidity_pools(
 ) -> list[LiquidityPool]:
     """Two+ swing highs (or lows) within tolerance => resting liquidity."""
     sh_mask, sl_mask = ta.swing_points(df, lookback)
-    highs = [(i, df["high"].iloc[i]) for i in range(len(df)) if sh_mask.iloc[i]]
-    lows = [(i, df["low"].iloc[i]) for i in range(len(df)) if sl_mask.iloc[i]]
+    high_np = df["high"].to_numpy(dtype=float)
+    low_np = df["low"].to_numpy(dtype=float)
+    highs = [(i, high_np[i]) for i in sh_mask.to_numpy().nonzero()[0]]
+    lows = [(i, low_np[i]) for i in sl_mask.to_numpy().nonzero()[0]]
     pools: list[LiquidityPool] = []
 
     def cluster(points: list[tuple[int, float]], kind: str):
@@ -57,14 +59,17 @@ def find_sweeps(df: pd.DataFrame, pools: list[LiquidityPool]) -> list[Sweep]:
     """Sweep: a bar wicks through a pool level but closes back on the other
     side (stop hunt / liquidity grab), after the pool formed."""
     sweeps: list[Sweep] = []
+    high = df["high"].to_numpy(dtype=float)
+    low = df["low"].to_numpy(dtype=float)
+    close = df["close"].to_numpy(dtype=float)
     for pool in pools:
         start = max(pool.indices) + 1
-        for i in range(start, len(df)):
-            bar = df.iloc[i]
-            if pool.kind == "highs" and bar["high"] > pool.level and bar["close"] < pool.level:
-                sweeps.append(Sweep(i, "high_sweep", pool.level))
-                break
-            if pool.kind == "lows" and bar["low"] < pool.level and bar["close"] > pool.level:
-                sweeps.append(Sweep(i, "low_sweep", pool.level))
-                break
+        if pool.kind == "highs":
+            hits = ((high[start:] > pool.level) & (close[start:] < pool.level)).nonzero()[0]
+            if hits.size:
+                sweeps.append(Sweep(start + int(hits[0]), "high_sweep", pool.level))
+        else:
+            hits = ((low[start:] < pool.level) & (close[start:] > pool.level)).nonzero()[0]
+            if hits.size:
+                sweeps.append(Sweep(start + int(hits[0]), "low_sweep", pool.level))
     return sweeps

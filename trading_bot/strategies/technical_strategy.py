@@ -21,6 +21,9 @@ class TechnicalStrategy(Strategy):
     def generate_signal(self, df: pd.DataFrame, context: dict) -> Signal:
         if len(df) < self.warmup_bars():
             return self.neutral(df, context, reason="warmup")
+        # indicators only need enough history to converge; keeps per-bar
+        # cost constant in backtests
+        df = df.tail(max(2 * self.slow, 120))
         close = df["close"]
         votes: list[float] = []
 
