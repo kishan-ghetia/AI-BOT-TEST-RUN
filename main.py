@@ -146,6 +146,60 @@ def cmd_evolve(args) -> int:
     return 0
 
 
+def cmd_report(args) -> int:
+    """Firm-wide status: every floor's population, paper accounts, gate state."""
+    import json as _json
+
+    base = Path(config.DATA_STORE_DIR)
+    print("=" * 62)
+    print("TRADING FLOOR REPORT")
+    print("=" * 62)
+
+    for tf in config.TIMEFRAMES:
+        pop_file = base / "evolution" / tf / "population.json"
+        if not pop_file.exists():
+            continue
+        pop = _json.loads(pop_file.read_text())
+        traders = [t for t in pop["traders"] if t.get("fitness") is not None]
+        traders.sort(key=lambda t: -t["fitness"])
+        print(f"\n[{tf}] generation {pop['generation']}, "
+              f"{len(pop['traders'])} traders")
+        for rank, t in enumerate(traders, 1):
+            marker = "*" if rank == 1 else " "
+            print(f" {marker} {rank}. {t['trader_id']:22s} "
+                  f"fitness={t['fitness']:+.3f}  survived={t['generations_survived']}")
+
+    print("\n" + "-" * 62)
+    print("PAPER ACCOUNTS / LIVE GATE")
+    from trading_bot.archive.store import Archive
+    from trading_bot.live.gate import check_live_eligibility
+
+    any_paper = False
+    for tf in config.TIMEFRAMES:
+        tf_dir = base / tf
+        if not tf_dir.exists():
+            continue
+        for sym_dir in sorted(tf_dir.iterdir()):
+            if not sym_dir.is_dir():
+                continue
+            archive = Archive(base, tf, sym_dir.name)
+            perf = archive.load_performance()
+            if perf.get("started_at") is None:
+                continue
+            any_paper = True
+            gate = check_live_eligibility(archive)
+            status = "LIVE-ELIGIBLE" if gate.allowed else "gate blocked"
+            sharpe = perf.get("sharpe")
+            dd = perf.get("max_drawdown")
+            print(f"  {tf}/{sym_dir.name}: trades={perf.get('trade_count', 0)} "
+                  f"sharpe={'%.2f' % sharpe if sharpe is not None else 'n/a'} "
+                  f"maxDD={'%.1f%%' % (dd * 100) if dd is not None else 'n/a'} "
+                  f"[{status}]")
+    if not any_paper:
+        print("  (no paper trading history yet)")
+    return 0
+
+
 def cmd_live(args) -> int:
     from trading_bot.live.runner import run_live
 
@@ -186,6 +240,9 @@ def build_parser() -> argparse.ArgumentParser:
     ev.add_argument("--synthetic", action="store_true",
                     help="use simulated data (offline testing)")
     ev.set_defaults(func=cmd_evolve)
+
+    rp = sub.add_parser("report", help="firm-wide leaderboard + gate status")
+    rp.set_defaults(func=cmd_report)
 
     lv = sub.add_parser("live", help="live trading (hard-gated)")
     lv.add_argument("--symbols")
